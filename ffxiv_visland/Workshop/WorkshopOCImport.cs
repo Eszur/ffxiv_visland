@@ -25,6 +25,7 @@ public unsafe class WorkshopOCImport
     private WorkshopConfig _config;
     private ExcelSheet<MJICraftworksObject> _craftSheet;
     private List<string> _botNames;
+    private List<string> _cnNames;
     private List<Func<bool>> _pendingActions = [];
     private bool IgnoreFourthWorkshop;
 
@@ -32,7 +33,8 @@ public unsafe class WorkshopOCImport
     {
         _config = Service.Config.Get<WorkshopConfig>();
         _craftSheet = Service.DataManager.GetExcelSheet<MJICraftworksObject>()!;
-        _botNames = _craftSheet.Select(r => OfficialNameToBotName(r.Item.GetDifferentLanguage(ClientLanguage.English).Value?.Name.RawString ?? "")).ToList();
+        _botNames = _craftSheet.Select(r => OfficialNameToBotName(Translate.TranslateToEnglish(r.Item.GetDifferentLanguage(ClientLanguage.English).Value?.Name.RawString) ?? "")).ToList();
+        _cnNames = _craftSheet.Select(r => r.Item.GetDifferentLanguage(ClientLanguage.ChineseSimplified).Value?.Name.RawString ?? "").ToList();
     }
 
     public void Update()
@@ -51,6 +53,20 @@ public unsafe class WorkshopOCImport
                         "This importer detects the presence of an item's name (not including \"Isleworks\" et al) on each line.\n" +
                         "You can copy an entire workshop's schedule from the discord, junk included.");
 
+        if (ImGui.Button("从剪切板导入作业"))
+        {
+            ImportCNRecsFromClipboard(false);
+        }
+        ImGuiComponents.HelpMarker("这是用于从剪贴板中导入蜡笔桶老师的腾讯文档作业的生产计划。\n" +
+            "该导入器检测每行上的商品名称。\n" +
+            "你可以从腾讯文档中复制整个工房的生产计划。");
+
+        ImGui.SameLine();
+        if (ImGui.Button("点击打开无人岛作业文档"))
+        {
+            Util.OpenLink("https://docs.qq.com/doc/DTUNRZkJjTVhvT2Nv");
+        }
+
         if (Recommendations.Empty)
             return;
 
@@ -59,14 +75,14 @@ public unsafe class WorkshopOCImport
         if (!_config.UseFavorSolver)
         {
             ImGui.TextUnformatted("Favours");
-            ImGuiComponents.HelpMarker("Click the \"This Week's Favors\" or \"Next Week's Favors\" button to generate a bot command for the OC discord for your favors.\n" +
-                    "Then click the #bot-spam button to open discord to the channel, paste in the command and copy its output.\n" +
-                    "Finally, click the \"Override 4th workshop\" button to replace the regular recommendations with favor recommendations.");
+            ImGuiComponents.HelpMarker("点击“本周请求”或 “下周请求”按钮，为您的猫耳小员的请求生成 OC discord 的机器人命令。\n" +
+                    "然后点击 #bot-spam 按钮打开 discord 频道，粘贴命令并复制其输出。\n" +
+                    "最后，点击“覆盖第4工房”按钮，将常规排班替换为猫票排班。");
 
-            if (ImGuiComponents.IconButtonWithText(Dalamud.Interface.FontAwesomeIcon.Clipboard, "This Week's Favors"))
+            if (ImGuiComponents.IconButtonWithText(Dalamud.Interface.FontAwesomeIcon.Clipboard, "本周请求"))
                 ImGui.SetClipboardText(CreateFavorRequestCommand(false));
             ImGui.SameLine();
-            if (ImGuiComponents.IconButtonWithText(Dalamud.Interface.FontAwesomeIcon.Clipboard, "Next Week's Favors"))
+            if (ImGuiComponents.IconButtonWithText(Dalamud.Interface.FontAwesomeIcon.Clipboard, "下周请求"))
                 ImGui.SetClipboardText(CreateFavorRequestCommand(true));
 
             if (ImGui.Button("Overseas Casuals > #bot-spam"))
@@ -75,42 +91,42 @@ public unsafe class WorkshopOCImport
                 Util.OpenLink("https://discord.com/channels/1034534280757522442/1034985297391407126");
             ImGuiComponents.HelpMarker("\uE051: Discord app\n\uE052: Discord in browser");
 
-            if (ImGui.Button("Override 4th workshop with favor schedules from clipboard"))
+            if (ImGui.Button("用剪贴板上的猫票排班覆盖第4工房"))
                 OverrideSideRecsLastWorkshopClipboard();
-            if (ImGui.Button("Override closest workshops with favor schedules from clipboard"))
+            if (ImGui.Button("用剪贴板中的猫票排班覆盖最近的工房"))
                 OverrideSideRecsAsapClipboard();
         }
         else
         {
-            ImGuiEx.TextV("Override 4th workshop with favors:");
+            ImGuiEx.TextV("猫票排班覆盖第4工房:");
             ImGui.SameLine();
-            if (ImGui.Button($"This Week##4th"))
+            if (ImGui.Button($"本周##4th"))
                 OverrideSideRecsLastWorkshopSolver(false);
             ImGui.SameLine();
-            if (ImGui.Button($"Next Week##4th"))
+            if (ImGui.Button($"下周##4th"))
                 OverrideSideRecsLastWorkshopSolver(true);
 
-            ImGuiEx.TextV("Override closest workshops with favors:");
+            ImGuiEx.TextV("猫票排班覆盖最近的工房:");
             ImGui.SameLine();
 
-            if (ImGui.Button($"This Week##asap"))
+            if (ImGui.Button($"本周##asap"))
                 OverrideSideRecsAsapSolver(false);
             ImGui.SameLine();
-            if (ImGui.Button($"Next Week##asap"))
+            if (ImGui.Button($"下周##asap"))
                 OverrideSideRecsAsapSolver(true);
         }
 
         ImGui.Separator();
 
-        ImGuiEx.TextV("Set Schedule:");
+        ImGuiEx.TextV("设置排班表:");
         ImGui.SameLine();
-        if (ImGui.Button("This Week"))
+        if (ImGui.Button("本周"))
             ApplyRecommendations(false);
         ImGui.SameLine();
-        if (ImGui.Button("Next Week"))
+        if (ImGui.Button("下周"))
             ApplyRecommendations(true);
         ImGui.SameLine();
-        ImGui.Checkbox("Ignore 4th Workshop", ref IgnoreFourthWorkshop);
+        ImGui.Checkbox("忽略第4个工房", ref IgnoreFourthWorkshop);
         ImGui.Separator();
 
         DrawCycleRecommendations();
@@ -136,9 +152,9 @@ public unsafe class WorkshopOCImport
         using var scrollSection = ImRaii.Child("ScrollableSection");
         foreach (var (c, r) in Recommendations.Enumerate())
         {
-            ImGuiEx.TextV($"Cycle {c}:");
+            ImGuiEx.TextV($"第{c}天:");
             ImGui.SameLine();
-            if (ImGui.Button($"Set on Active Cycle##{c}"))
+            if (ImGui.Button($"设置到当前周期##{c}"))
                 ApplyRecommendationToCurrentCycle(r);
 
             using var outerTable = ImRaii.Table($"table_{c}", r.Workshops.Count, tableFlags);
@@ -147,20 +163,20 @@ public unsafe class WorkshopOCImport
                 var workshopLimit = r.Workshops.Count - (IgnoreFourthWorkshop && r.Workshops.Count > 1 ? 1 : 0);
                 if (r.Workshops.Count <= 1)
                 {
-                    ImGui.TableSetupColumn(IgnoreFourthWorkshop ? $"Workshops 1-{maxWorkshops - 1}" : "All Workshops");
+                    ImGui.TableSetupColumn(IgnoreFourthWorkshop ? $"工房 1-{maxWorkshops - 1}" : "全部工房");
                 }
                 else if (r.Workshops.Count < maxWorkshops)
                 {
                     var numDuplicates = 1 + maxWorkshops - r.Workshops.Count;
-                    ImGui.TableSetupColumn($"Workshops 1-{numDuplicates}");
+                    ImGui.TableSetupColumn($"工房 1-{numDuplicates}");
                     for (int i = 1; i < workshopLimit; ++i)
-                        ImGui.TableSetupColumn($"Workshop {i + numDuplicates}");
+                        ImGui.TableSetupColumn($"工房 {i + numDuplicates}");
                 }
                 else
                 {
                     // favors
                     for (int i = 0; i < workshopLimit; ++i)
-                        ImGui.TableSetupColumn($"Workshop {i + 1}");
+                        ImGui.TableSetupColumn($"工房 {i + 1}");
                 }
                 ImGui.TableHeadersRow();
 
@@ -183,7 +199,7 @@ public unsafe class WorkshopOCImport
                             ImGui.Image(Service.TextureProvider.GetIcon(craftworkItemIcon)!.ImGuiHandle, iconSizeVec, Vector2.Zero, Vector2.One);
 
                             ImGui.TableNextColumn();
-                            ImGui.TextUnformatted(_botNames[(int)rec.CraftObjectId]);
+                            ImGui.TextUnformatted(_cnNames[(int)rec.CraftObjectId]);
                         }
                     }
                 }
@@ -389,6 +405,102 @@ public unsafe class WorkshopOCImport
             score += item.Length;
 
         return score;
+    }
+
+    public void ImportCNRecsFromClipboard(bool silent)
+    {
+        try
+        {
+            Recommendations = ParseCNRecs(ImGui.GetClipboardText());
+        }
+        catch (Exception ex)
+        {
+            ReportError($"Error: {ex.Message}", silent);
+        }
+    }
+
+    private WorkshopSolver.Recs ParseCNRecs(string str)
+    {
+        var result = new WorkshopSolver.Recs();
+
+        var curRec = new WorkshopSolver.DayRec();
+        int nextSlot = 24;
+        int curCycle = 0;
+        int cycle = 0;
+        var rawItemStrings = str.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        foreach (var line in rawItemStrings)
+        {
+            var dotIndex = line.IndexOf('.');
+            var linesWithoutNumbers = line;
+
+            if (dotIndex >= 0 && dotIndex + 1 < line.Length)
+            {
+                linesWithoutNumbers = line[(dotIndex + 1)..];
+
+                int.TryParse(line.Substring(0, 1), out cycle);
+                result.Add(curCycle > 0 ? curCycle : cycle - 1, curRec);
+                curRec = new();
+                nextSlot = 24;
+                curCycle = cycle;
+
+            }
+
+            var pattern = @"\[[^\]]*\]|， ×[1-4]|，×[1-4]";
+            linesWithoutNumbers = Regex.Replace(linesWithoutNumbers, pattern, "");
+
+            var list = linesWithoutNumbers.Split(new[] { '、' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var itemStr in list)
+            {
+                if (itemStr.Contains("休息|预计收益"))
+                    continue;
+                var item = TryParseItemCN(itemStr);
+                if (item != null)
+                {
+                    if (nextSlot + item.CraftingTime > 24)
+                    {
+                        // start next workshop schedule
+                        curRec.Workshops.Add(new());
+                        nextSlot = 0;
+                    }
+                    curRec.Workshops.Last().Add(nextSlot, item.RowId);
+                    nextSlot += item.CraftingTime;
+                }
+            }
+        }
+        result.Add(curCycle > 0 ? curCycle : (AgentMJICraftSchedule.Instance()->Data->CycleInProgress + 2) % 7, curRec);
+        return result;
+    }
+
+
+private MJICraftworksObject? TryParseItemCN(string line)
+    {
+        var matchingRows = _cnNames.Select((n, i) => (n, i)).Where(t => !string.IsNullOrEmpty(t.n) && IsMatchCN(line, t.n)).ToList();
+        if (matchingRows.Count > 1)
+        {
+            matchingRows = matchingRows.OrderByDescending(t => MatchingScore(t.n, line)).ToList();
+            Service.Log.Info($"Row '{line}' matches {matchingRows.Count} items: {string.Join(", ", matchingRows.Select(r => r.n))}\n" +
+                "First one is most likely the correct match. Please report if this is wrong.");
+        }
+        return matchingRows.Count > 0 ? _craftSheet.GetRow((uint)matchingRows.First().i) : null;
+    }
+
+
+    private static bool IsMatchCN(string x, string y)
+    {
+        if (x == "腌萝卜")
+            x = "腌小萝卜";
+        if (x == "洋葱汤")
+            x = "开拓工房洋葱汤";
+        if (x == "韭葱汤")
+            x = "开拓工房韭葱洋葱汤";
+        if (x == "煎菜豆")
+            x = "开拓工房煎红花菜豆";
+        if (x == "甜新薯")
+            x = "开拓工房甜新薯";
+        if (x == "甜新薯挞")
+            x = "海岛甜新薯挞";
+        return y.Contains(x);
     }
 
     private List<WorkshopSolver.WorkshopRec> ParseRecOverrides(string str)

@@ -31,16 +31,16 @@ unsafe class WorkshopWindow : UIAttachedWindow
         using var tabs = ImRaii.TabBar("Tabs");
         if (tabs)
         {
-            using (var tab = ImRaii.TabItem("OC import"))
+            using (var tab = ImRaii.TabItem("作业导入"))
                 if (tab)
                     _oc.Draw();
-            using (var tab = ImRaii.TabItem("Manual schedule"))
+            using (var tab = ImRaii.TabItem("手动排班"))
                 if (tab)
                     _manual.Draw();
-            using (var tab = ImRaii.TabItem("Settings"))
+            using (var tab = ImRaii.TabItem("设置"))
                 if (tab)
                     DrawSettings();
-            using (var tab = ImRaii.TabItem("Debug"))
+            using (var tab = ImRaii.TabItem("调试"))
                 if (tab)
                     _debug.Draw();
         }
@@ -60,11 +60,11 @@ unsafe class WorkshopWindow : UIAttachedWindow
 
     private void DrawSettings()
     {
-        if (ImGui.Checkbox("Automatically select next cycle on open", ref _config.AutoOpenNextDay))
+        if (ImGui.Checkbox("打开时自动选择下一个天", ref _config.AutoOpenNextDay))
             _config.NotifyModified();
-        if (ImGui.Checkbox("Automatically import base recs on open", ref _config.AutoImport))
+        if (ImGui.Checkbox("打开时自动导入排班", ref _config.AutoImport))
             _config.NotifyModified();
-        if (ImGui.Checkbox("Use experimental favor solver", ref _config.UseFavorSolver))
+        if (ImGui.Checkbox("使用实验性的猫票求解器", ref _config.UseFavorSolver))
             _config.NotifyModified();
     }
 }
